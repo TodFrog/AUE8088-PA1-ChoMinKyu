@@ -10,7 +10,7 @@ OPTIMIZER_PARAMS    = {'type': 'SGD', 'lr': 0.005, 'momentum': 0.9}
 SCHEDULER_PARAMS    = {'type': 'MultiStepLR', 'milestones': [30, 35], 'gamma': 0.2}
 
 # Dataaset
-DATASET_ROOT_PATH   = 'datasets/'
+DATASET_ROOT_PATH = r"C:\Users\user\OneDrive\Desktop\deeplearning\PA1\datasets\datasets"
 NUM_WORKERS         = 8
 
 # Augmentation

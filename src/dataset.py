@@ -23,22 +23,13 @@ class TinyImageNetDatasetModule(LightningDataModule):
         self.batch_size = batch_size
 
     def prepare_data(self):
-        '''called only once and on 1 GPU'''
-        if not os.path.exists(os.path.join(cfg.DATASET_ROOT_PATH, self.__DATASET_NAME__)):
-            # download data
-            print(colored("\nDownloading dataset...", color='green', attrs=('bold',)))
-            filename = self.__DATASET_NAME__ + '.tar'
-            wget.download(f'https://hyu-aue8088.s3.ap-northeast-2.amazonaws.com/{filename}')
-
-            # extract data
-            print(colored("\nExtract dataset...", color='green', attrs=('bold',)))
-            with tarfile.open(name=filename) as tar:
-                # Go over each member
-                for member in tqdm(iterable=tar.getmembers(), total=len(tar.getmembers())):
-                    # Extract member
-                    tar.extract(path=cfg.DATASET_ROOT_PATH, member=member)
-            os.remove(filename)
-
+        '''Assumes dataset is already downloaded and extracted'''
+        dataset_path = os.path.join(cfg.DATASET_ROOT_PATH, self.__DATASET_NAME__)
+        if not os.path.exists(dataset_path):
+            raise FileNotFoundError(
+                f"Dataset not found at {dataset_path}. "
+                f"Please download and extract the dataset manually."
+            )
     def train_dataloader(self):
         tf_train = transforms.Compose([
             transforms.RandomRotation(cfg.IMAGE_ROTATION),

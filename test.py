@@ -47,6 +47,8 @@ if __name__ == "__main__":
 
     # FLOP counter
     x, y = next(iter(datamodule.test_dataloader()))
+    x = x.to(model.device)  # 모델이 올라간 디바이스로 tensor도 옮김
+
     flop_counter = FlopCounterMode(model, depth=1)
 
     with flop_counter:
