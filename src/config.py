@@ -2,15 +2,16 @@ import os
 
 # Training Hyperparameters
 NUM_CLASSES         = 200
-BATCH_SIZE          = 512
+BATCH_SIZE          = 64
 VAL_EVERY_N_EPOCH   = 1
+
 
 NUM_EPOCHS          = 40
 OPTIMIZER_PARAMS    = {'type': 'SGD', 'lr': 0.005, 'momentum': 0.9}
 SCHEDULER_PARAMS    = {'type': 'MultiStepLR', 'milestones': [30, 35], 'gamma': 0.2}
 
 # Dataaset
-DATASET_ROOT_PATH = r"C:\Users\user\OneDrive\Desktop\deeplearning\PA1\datasets\datasets"
+DATASET_ROOT_PATH = r"C:/Users/user/OneDrive/Desktop/deeplearning/PA1/datasets/datasets"
 NUM_WORKERS         = 8
 
 # Augmentation
@@ -22,12 +23,12 @@ IMAGE_MEAN          = [0.4802, 0.4481, 0.3975]
 IMAGE_STD           = [0.2302, 0.2265, 0.2262]
 
 # Network
-MODEL_NAME          = 'resnet18'
+MODEL_NAME          = 'resnet152'
 
 # Compute related
 ACCELERATOR         = 'gpu'
 DEVICES             = [0]
-PRECISION_STR       = '32-true'
+PRECISION_STR       = '16-mixed'
 
 # Logging
 WANDB_PROJECT       = 'aue8088-pa1'
