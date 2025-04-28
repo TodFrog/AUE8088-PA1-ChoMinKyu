@@ -10,6 +10,7 @@ from torch import nn
 from torchvision import models
 from torchvision.models.alexnet import AlexNet
 import torch
+import torch.nn as nn
 
 # ✅ TorchMetrics
 from torchmetrics.classification import Accuracy, MulticlassF1Score
@@ -19,10 +20,48 @@ import src.config as cfg
 from src.util import show_setting
 
 
-class MyNetwork(AlexNet):
-    def __init__(self):
-        super().__init__()
-        # [선택] AlexNet feature extractor 수정하려면 여기서 편집
+class MyNetwork(nn.Module):
+    def __init__(self, num_classes=200):
+        super(MyNetwork, self).__init__()
+
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),  # Conv1
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),                 # Pool1
+
+            nn.Conv2d(64, 192, kernel_size=5, padding=2),           # Conv2
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),                 # Pool2
+
+            nn.Conv2d(192, 384, kernel_size=3, padding=1),          # Conv3
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(384, 256, kernel_size=3, padding=1),          # Conv4
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),          # Conv5
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),                 # Pool5
+        )
+
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))  # feature map size 맞춰줌 (224x224 기준)
+
+        self.classifier = nn.Sequential(
+            nn.Dropout(),
+            nn.Linear(256 * 6 * 6, 4096),  # FC6
+            nn.ReLU(inplace=True),
+            nn.Dropout(),
+            nn.Linear(4096, 4096),         # FC7
+            nn.ReLU(inplace=True),
+            nn.Linear(4096, num_classes),  # FC8 (output layer)
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)  # Batch size 유지하고 나머지 flatten
+        x = self.classifier(x)
+        return x
 
 
 class SimpleClassifier(LightningModule):
@@ -36,7 +75,7 @@ class SimpleClassifier(LightningModule):
         super().__init__()
 
         # ----------------- Model -----------------
-        if model_name == "MyNetwork":
+        if model_name == "MyNetwork_alexnet":
             self.model = MyNetwork()
         else:
             models_list = models.list_models()

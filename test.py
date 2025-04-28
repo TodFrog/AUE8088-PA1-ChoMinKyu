@@ -10,6 +10,12 @@ from lightning import Trainer
 from torch.utils.flop_counter import FlopCounterMode
 import torch
 
+# Wandb
+import wandb
+# Wandb settings
+from lightning.pytorch.loggers import WandbLogger
+
+
 # Custom packages
 from src.dataset import TinyImageNetDatasetModule
 from src.network import SimpleClassifier
@@ -17,6 +23,12 @@ import src.config as cfg
 
 torch.set_float32_matmul_precision('medium')
 
+wandb_logger = WandbLogger(
+    project = cfg.WANDB_PROJECT,
+    save_dir = cfg.WANDB_SAVE_DIR,
+    entity = cfg.WANDB_ENTITY,
+    name = cfg.WANDB_NAME + "-test",  # 테스트용으로 이름 뒤에 태그 추가
+)
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
@@ -40,7 +52,7 @@ if __name__ == "__main__":
         precision = cfg.PRECISION_STR,
         benchmark = True,
         inference_mode = True,
-        logger = False,
+        logger = wandb_logger,
     )
 
     trainer.validate(model, ckpt_path = args.ckpt_file, datamodule = datamodule)

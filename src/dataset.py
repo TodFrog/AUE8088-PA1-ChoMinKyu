@@ -61,9 +61,12 @@ class TinyImageNetDatasetModule(LightningDataModule):
 
         return DataLoader(
             dataset,
-            pin_memory=True,
-            num_workers=cfg.NUM_WORKERS,
-            batch_size=self.batch_size,
+            shuffle=True,
+         pin_memory=True,
+          persistent_workers=True,
+          prefetch_factor=4,
+           num_workers=cfg.NUM_WORKERS,
+           batch_size=self.batch_size,
         )
 
     def test_dataloader(self):
