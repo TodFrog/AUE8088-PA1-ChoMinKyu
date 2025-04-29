@@ -25,7 +25,7 @@ class MyNetwork(AlexNet):
         # [TODO] Modify feature extractor part in AlexNet
         self.features = nn.Sequential(
             # Conv1: kernel 7x7, stride 2 → 64×64 입력 시 32×32
-            nn.Conv2d(3, 64, kernel_size=5, stride=2, padding=2),
+            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2, padding=1),      # 16×16
 

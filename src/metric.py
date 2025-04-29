@@ -1,5 +1,6 @@
 from torchmetrics import Metric
 import torch
+from fvcore.nn import FlopCountAnalysis
 
 # [TODO] Implement this!
 class MyF1Score(Metric):
@@ -64,3 +65,21 @@ class MyAccuracy(Metric):
 
     def compute(self) -> torch.Tensor:
         return self.correct.float() / (self.total.float() + 1e-12)
+    
+    
+def count_parameters(model: torch.nn.Module) -> int:
+    """
+    Count the number of parameters in a PyTorch model.
+    """
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def count_flops(model: torch.nn.Module, tuple = (1, 3, 64, 64)) -> int:
+    
+    """
+    Count the number of FLOPs in a PyTorch model.
+    """
+    model.eval()                                      # BatchNorm 등 고정
+    dummy = torch.randn(1, 3, 64, 64,
+                        device=next(model.parameters()).device)
+    flops = FlopCountAnalysis(model, dummy)
+    return int(flops.total())

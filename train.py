@@ -12,6 +12,8 @@ import torch
 # Custom packages
 from src.dataset import TinyImageNetDatasetModule
 from src.network import SimpleClassifier
+from src.metric import count_parameters, count_flops
+
 import src.config as cfg
 
 torch.set_float32_matmul_precision('medium')
@@ -51,4 +53,18 @@ if __name__ == "__main__":
     )
 
     trainer.fit(model, datamodule=datamodule)
-    trainer.validate(ckpt_path='best', datamodule=datamodule)
+    val_results = trainer.validate(ckpt_path='best', datamodule=datamodule)
+
+    # Count Params / FLOPS
+    num_params = count_parameters(model)
+    dummy_input = torch.randn(1, 3, 64, 64).to(model.device)
+    flops = count_flops(model, dummy_input)
+
+    # Log to WandB
+    top1_acc = val_results[0]['accuracy/val']
+    wandb_logger.log_metrics({
+        "num_parameters": num_params,
+        "flops": flops,
+        "top1_accuracy_final": top1_acc,
+    })
+    

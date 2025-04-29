@@ -9,7 +9,7 @@ VAL_EVERY_N_EPOCH   = 1
 
 NUM_EPOCHS          = 40
 OPTIMIZER_PARAMS    = {'type': 'SGD', 'lr': 0.1, 'momentum': 0.9, 'weight_decay': 5e-4}
-SCHEDULER_PARAMS    = {'type': 'MultiStepLR', 'milestones': [30, 35], 'gamma': 0.2}
+SCHEDULER_PARAMS    = {'type': 'CosineAnnealingLR', 'T_max': NUM_EPOCHS, 'eta_min': 1e-6}
 
 # Dataaset
 DATASET_ROOT_PATH = r"C:\datasets\datasets"
