@@ -8,7 +8,7 @@ from lightning.pytorch import LightningModule
 from lightning.pytorch.loggers.wandb import WandbLogger
 from torch import nn
 from torchvision import models
-from torchvision.models.alexnet import AlexNet
+from torchvision.models import resnet50
 import torch
 
 # Custom packages
@@ -18,60 +18,31 @@ from src.util import show_setting
 
 
 # [TODO: Optional] Rewrite this class if you want
-class MyNetwork(AlexNet):
+class MyNetwork(nn.Module):
     def __init__(self, num_classes: int = 200):
         super().__init__()
-        # ───────── Feature Extractor ─────────
-        # [TODO] Modify feature extractor part in AlexNet
-        self.features = nn.Sequential(
-            # Conv1: kernel 7x7, stride 2 → 64×64 입력 시 32×32
-            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),      # 16×16
 
-            # Conv2
-            nn.Conv2d(64, 128, kernel_size=5, padding=2),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),      # 8×8
+        # ───────── Backbone: ResNet-50 ─────────
+        self.backbone = resnet50(weights=None)      # 가중치 미초기화 버전
 
-            # Conv3–5
-            nn.Conv2d(128, 384, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
+        # Conv-1은 기본값이 이미 (3, 64, k7, s2, p3)이므로 별도 수정 필요 없음
+        # (stride·padding 등 추가 조정이 필요하면 여기서 바꿔주면 됩니다)
 
-            nn.Conv2d(384, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-        )
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
         # ───────── Classifier ─────────
-        self.classifier = nn.Sequential(
-            nn.Dropout(p=0.5),
-            nn.Linear(256 * 6 * 6, 2048),
-            nn.ReLU(inplace=True),
+        in_features = self.backbone.fc.in_features   # 2048
+        self.backbone.fc = nn.Linear(in_features, num_classes)
 
-            nn.Dropout(p=0.5),
-            nn.Linear(2048, 2048),
-            nn.ReLU(inplace=True),
+        # He(Kaiming) 초기화
+        self._initialize_weights()
 
-            nn.Linear(2048, num_classes),
-        )
-
-        # He 초기화
-        self._initialize_weights()        
-        
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # [TODO: Optional] Modify this as well if you want
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
-        return x
+        return self.backbone(x)
+
+    # ------------------------------------------
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
