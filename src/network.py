@@ -1,204 +1,172 @@
-# --- 변경된 network.py ------------------------------------------------------
+# Python packages
 from termcolor import colored
 from typing import Dict
 import copy
 
-# PyTorch & Lightning
+# PyTorch & Pytorch Lightning
 from lightning.pytorch import LightningModule
 from lightning.pytorch.loggers.wandb import WandbLogger
 from torch import nn
 from torchvision import models
 from torchvision.models.alexnet import AlexNet
 import torch
-import torch.nn as nn
-
-# ✅ TorchMetrics
-from torchmetrics.classification import Accuracy, MulticlassF1Score
 
 # Custom packages
+from src.metric import MyAccuracy, MyF1Score
 import src.config as cfg
 from src.util import show_setting
 
 
-class MyNetwork(nn.Module):
-    def __init__(self, num_classes=200):
-        super(MyNetwork, self).__init__()
-
+# [TODO: Optional] Rewrite this class if you want
+class MyNetwork(AlexNet):
+    def __init__(self, num_classes: int = 200):
+        super().__init__()
+        # ───────── Feature Extractor ─────────
+        # [TODO] Modify feature extractor part in AlexNet
         self.features = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),  # Conv1
+            # Conv1: kernel 7x7, stride 2 → 64×64 입력 시 32×32
+            nn.Conv2d(3, 64, kernel_size=5, stride=2, padding=2),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),                 # Pool1
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),      # 16×16
 
-            nn.Conv2d(64, 192, kernel_size=5, padding=2),           # Conv2
+            # Conv2
+            nn.Conv2d(64, 128, kernel_size=5, padding=2),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),                 # Pool2
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),      # 8×8
 
-            nn.Conv2d(192, 384, kernel_size=3, padding=1),          # Conv3
+            # Conv3–5
+            nn.Conv2d(128, 384, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
 
-            nn.Conv2d(384, 256, kernel_size=3, padding=1),          # Conv4
+            nn.Conv2d(384, 256, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
 
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),          # Conv5
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=3, stride=2),                 # Pool5
         )
-
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))  # feature map size 맞춰줌 (224x224 기준)
-
+        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        # ───────── Classifier ─────────
         self.classifier = nn.Sequential(
-            nn.Dropout(),
-            nn.Linear(256 * 6 * 6, 4096),  # FC6
+            nn.Dropout(p=0.5),
+            nn.Linear(256 * 6 * 6, 2048),
             nn.ReLU(inplace=True),
-            nn.Dropout(),
-            nn.Linear(4096, 4096),         # FC7
+
+            nn.Dropout(p=0.5),
+            nn.Linear(2048, 2048),
             nn.ReLU(inplace=True),
-            nn.Linear(4096, num_classes),  # FC8 (output layer)
+
+            nn.Linear(2048, num_classes),
         )
 
-    def forward(self, x):
+        # He 초기화
+        self._initialize_weights()        
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # [TODO: Optional] Modify this as well if you want
         x = self.features(x)
         x = self.avgpool(x)
-        x = torch.flatten(x, 1)  # Batch size 유지하고 나머지 flatten
+        x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
-
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.constant_(m.bias, 0)
 
 class SimpleClassifier(LightningModule):
-    def __init__(
-        self,
-        model_name: str = "resnet18",
-        num_classes: int = 200,
-        optimizer_params: Dict = dict(),
-        scheduler_params: Dict = dict(),
-    ):
+    def __init__(self,
+                 model_name: str = 'resnet18',
+                 num_classes: int = 200,
+                 optimizer_params: Dict = dict(),
+                 scheduler_params: Dict = dict(),
+        ):
         super().__init__()
 
-        # ----------------- Model -----------------
-        if model_name == "MyNetwork_alexnet":
+        # Network
+        if model_name == 'MyNetwork':
             self.model = MyNetwork()
         else:
             models_list = models.list_models()
-            assert (
-                model_name in models_list
-            ), f"Unknown model name: {model_name}. Choose one from {', '.join(models_list)}"
+            assert model_name in models_list, f'Unknown model name: {model_name}. Choose one from {", ".join(models_list)}'
             self.model = models.get_model(model_name, num_classes=num_classes)
 
-        # ----------------- Loss ------------------
+        # Loss function
         self.loss_fn = nn.CrossEntropyLoss()
 
-        # ----------------- Metrics ----------------
-        # 학습 / 검증용으로 두 세트 분리 (epoch 단위 집계)
-        self.train_acc = Accuracy(task="multiclass", num_classes=num_classes)
-        self.val_acc   = Accuracy(task="multiclass", num_classes=num_classes)
+        # Metric
+        self.accuracy = MyAccuracy()
+        self.f1       = MyF1Score(num_classes=num_classes, average=True)
 
-        self.train_f1 = MulticlassF1Score(num_classes=num_classes, average="macro")
-        self.val_f1   = MulticlassF1Score(num_classes=num_classes, average="macro")
-
-        # ----------------- Hparams ---------------
+        # Hyperparameters
         self.save_hyperparameters()
 
-    # -----------------------------------------------------------
-    # Lightning 라이프사이클
-    # -----------------------------------------------------------
     def on_train_start(self):
         show_setting(cfg)
 
     def configure_optimizers(self):
         optim_params = copy.deepcopy(self.hparams.optimizer_params)
-        optim_type   = optim_params.pop("type")
-        optimizer    = getattr(torch.optim, optim_type)(self.parameters(), **optim_params)
+        optim_type = optim_params.pop('type')
+        optimizer = getattr(torch.optim, optim_type)(self.parameters(), **optim_params)
 
-        sched_params = copy.deepcopy(self.hparams.scheduler_params)
-        sched_type   = sched_params.pop("type")
-        scheduler    = getattr(torch.optim.lr_scheduler, sched_type)(optimizer, **sched_params)
-        return {"optimizer": optimizer, "lr_scheduler": scheduler}
+        scheduler_params = copy.deepcopy(self.hparams.scheduler_params)
+        scheduler_type = scheduler_params.pop('type')
+        scheduler = getattr(torch.optim.lr_scheduler, scheduler_type)(optimizer, **scheduler_params)
+        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
 
-    # -----------------------------------------------------------
-    # Forward & shared step
-    # -----------------------------------------------------------
     def forward(self, x):
         return self.model(x)
 
-    def _common_step(self, batch):
-        x, y   = batch
-        logits = self.forward(x)
-        loss   = self.loss_fn(logits, y)
-        preds  = torch.argmax(logits, dim=1)
-        return loss, preds, y
-
-    # -----------------------------------------------------------
-    # Training loop
-    # -----------------------------------------------------------
     def training_step(self, batch, batch_idx):
-        loss, preds, targets = self._common_step(batch)
+        loss, logits, y = self._common_step(batch)
 
-        # TorchMetrics는 update/compute 패턴
-        self.train_acc.update(preds, targets)
-        self.train_f1.update(preds, targets)
+        acc = self.accuracy(logits, y)   # MyAccuracy 사용
+        f1  = self.f1(logits, y)         # MyF1Score  사용
 
-        self.log("loss/train", loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log_dict(
+            {'loss/train': loss,
+             'accuracy/train': acc,
+             'f1/train': f1},
+            on_step=False, on_epoch=True, prog_bar=True, logger=True
+        )
         return loss
 
-    def on_train_epoch_end(self):
-        acc = self.train_acc.compute()
-        f1  = self.train_f1.compute()
-
-        self.log_dict(
-            {"accuracy/train": acc, "f1/train": f1},
-            prog_bar=True,
-        )
-
-        # 다음 epoch 집계를 위해 초기화
-        self.train_acc.reset()
-        self.train_f1.reset()
-
-    # -----------------------------------------------------------
-    # Validation loop
-    # -----------------------------------------------------------
     def validation_step(self, batch, batch_idx):
-        loss, preds, targets = self._common_step(batch)
+        loss, logits, y = self._common_step(batch)
 
-        self.val_acc.update(preds, targets)
-        self.val_f1.update(preds, targets)
-
-        self.log("loss/val", loss, on_step=False, on_epoch=True, prog_bar=False)
-
-        # (선택) 이미지 로깅
-        self._wandb_log_image(batch, batch_idx, preds, frequency=cfg.WANDB_IMG_LOG_FREQ)
-
-    def on_validation_epoch_end(self):
-        acc = self.val_acc.compute()
-        f1  = self.val_f1.compute()
+        acc = self.accuracy(logits, y)
+        f1  = self.f1(logits, y)
 
         self.log_dict(
-            {"accuracy/val": acc, "f1/val": f1},
-            prog_bar=True,
+            {'loss/val': loss,
+             'accuracy/val': acc,
+             'f1/val': f1},
+            on_step=False, on_epoch=True, prog_bar=True, logger=True
         )
 
-        self.val_acc.reset()
-        self.val_f1.reset()
+        self._wandb_log_image(batch, batch_idx, logits,
+                              frequency=cfg.WANDB_IMG_LOG_FREQ)
 
-    # -----------------------------------------------------------
-    # WandB 이미지 로깅 (기존 코드 유지)
-    # -----------------------------------------------------------
-    def _wandb_log_image(self, batch, batch_idx, preds, frequency=100):
+    def _common_step(self, batch):
+        x, y = batch
+        logits = self.forward(x)
+        loss   = self.loss_fn(logits, y)
+        return loss, logits, y
+
+    def _wandb_log_image(self, batch, batch_idx, preds, frequency = 100):
         if not isinstance(self.logger, WandbLogger):
             if batch_idx == 0:
-                self.print(
-                    colored(
-                        "Please use WandbLogger to log images.",
-                        color="blue",
-                        attrs=("bold",),
-                    )
-                )
+                self.print(colored("Please use WandbLogger to log images.", color='blue', attrs=('bold',)))
             return
 
         if batch_idx % frequency == 0:
             x, y = batch
+            preds = torch.argmax(preds, dim=1)
             self.logger.log_image(
-                key=f"pred/val/batch{batch_idx:05d}_sample_0",
-                images=[x[0].cpu()],
-                caption=[f"GT: {y[0].item()}, Pred: {preds[0].item()}"],
-            )
-# ---------------------------------------------------------------------------
+                key=f'pred/val/batch{batch_idx:5d}_sample_0',
+                images=[x[0].to('cpu')],
+                caption=[f'GT: {y[0].item()}, Pred: {preds[0].item()}'])
