@@ -22,7 +22,7 @@ torch.set_float32_matmul_precision('medium')
 if __name__ == "__main__":
 
     model = SimpleClassifier(
-        model_name = "MyNetwork",
+        model_name = cfg.MODEL_NAME,
         num_classes = cfg.NUM_CLASSES,
         optimizer_params = cfg.OPTIMIZER_PARAMS,
         scheduler_params = cfg.SCHEDULER_PARAMS,

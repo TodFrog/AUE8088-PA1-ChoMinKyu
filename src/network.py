@@ -8,7 +8,7 @@ from lightning.pytorch import LightningModule
 from lightning.pytorch.loggers.wandb import WandbLogger
 from torch import nn
 from torchvision import models
-from torchvision.models import resnet50
+from torchvision.models import resnext50_32x4d
 import torch
 
 # Custom packages
@@ -22,17 +22,24 @@ class MyNetwork(nn.Module):
     def __init__(self, num_classes: int = 200):
         super().__init__()
 
-        # ───────── Backbone: ResNet-50 ─────────
-        self.backbone = resnet50(weights=None)      # 가중치 미초기화 버전
+        # ───────── Backbone: ResNeXt-50 ─────────
+        self.backbone = MyNetwork
 
-        # Conv-1은 기본값이 이미 (3, 64, k7, s2, p3)이므로 별도 수정 필요 없음
-        # (stride·padding 등 추가 조정이 필요하면 여기서 바꿔주면 됩니다)
+        # conv1: (in_channels=3, out_channels=64) → 기본값과 동일하지만 명시적으로 고정
+        self.backbone.conv1 = nn.Conv2d(
+            in_channels=3,
+            out_channels=64,
+            kernel_size=7,
+            stride=2,
+            padding=3,
+            bias=False,
+        )
 
         # ───────── Classifier ─────────
-        in_features = self.backbone.fc.in_features   # 2048
+        in_features = self.backbone.fc.in_features  # 2048
         self.backbone.fc = nn.Linear(in_features, num_classes)
 
-        # He(Kaiming) 초기화
+        # He (Kaiming) initialization
         self._initialize_weights()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
